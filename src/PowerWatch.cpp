@@ -6,6 +6,7 @@
 /*
    Monitor cabin power
     C. Catlett Apr 2019
+   2020-Oct  added MQTT to connect to remote Home Assistant
                                           */
 
 #include <Particle.h>
@@ -15,7 +16,7 @@
 void setup();
 void loop();
 void tellHASS (const char *ha_topic, String ha_payload);
-#line 10 "/Users/charlescatlett/CODE/PowerWatch/src/PowerWatch.ino"
+#line 11 "/Users/charlescatlett/CODE/PowerWatch/src/PowerWatch.ino"
 FuelGauge fuel;
 bool DEBUG = FALSE;
                                 // prime numbers are cool
@@ -35,7 +36,7 @@ float lastReport      = 0;
 /*
  * When you configure Mosquitto Broker MQTT in HA you will set a
  * username and password for MQTT - plug these in here if you are not
- * using a secrets.h file.
+ * using a secrets.h file. (and comment out the #include "sectets.h" line above)
  */
 //const char *HA_USR = "your_ha_mqtt_usrname";
 //const char *HA_PWD = "your_ha_mqtt_passwd";
@@ -91,13 +92,12 @@ void loop() {
         fuelPercent = fuel.getSoC(); 
         lastReport = millis();
         if (fuelPercent < 75) {     // Below 75%? no- normal fluctuation
-            interval = closerLook;  // yes-  start checking every 10 minutes
+            interval = closerLook;  // yes-  start checking every ~5 minutes
             if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
                 Particle.publish("POWER", String::format("DISCHARGING (charge level %.2f)",fuelPercent), PRIVATE);
                 delay(500);
                 tellHASS(TOPIC_C, String(fuelPercent));
-             }
-            if (fuelPercent > lastPercent) { // going up... wall power back
+             } else {
                 Particle.publish("POWER", "CHARGING",PRIVATE);
                 delay(500);
                 tellHASS(TOPIC_B, String(fuelPercent));
