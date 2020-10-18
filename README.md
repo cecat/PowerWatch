@@ -4,14 +4,15 @@ with a LiPo battery and plugged into the wall, checks battery level regularly.
 Reports battery level and whether the battery is discharging (power must be out).
 
 It uses MQTT to send these notices and warnings to Home Assistant, where you can set
-up automations based on the topics as well as monitor temperature over time.
+up automations based on the topics as well as monitor power stability over time (if
+that's an issue for you).
 
 To use this code you will need to set either the hostname or IP address of your HA system,
 which for this code we assume is running the Mosquito MQTT broker.
-Also, when setting up Mosquitto MQTT you will have created an MQTT username and password -
-those will also need to be set.
+Also, when setting up the Mosquitto MQTT integration in HA you will have created
+an MQTT username and password - those will also need to be set.
 
-The best way to do this is to set up a file "secrets.h" that looks like this if you are
+The best way to do this is to create a file "secrets.h" that looks like this if you are
 using a hostname:
 
 ```
