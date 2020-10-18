@@ -1,5 +1,5 @@
 # PowerWatch
-Simply Particle.io Electron-based power monitor for a remote home. Using an Electron
+A Particle.io Electron-based power monitor for a remote home. Using an Electron
 with a LiPo battery and plugged into the wall, checks battery level regularly.
 Reports battery level and whether the battery is discharging (power must be out).
 
