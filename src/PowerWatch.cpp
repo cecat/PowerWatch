@@ -20,7 +20,7 @@ void tellHASS (const char *ha_topic, String ha_payload);
 #line 11 "/Users/charlescatlett/CODE/PowerWatch/src/PowerWatch.ino"
 FuelGauge fuel;
                                 // prime numbers are cool
-#define casual        12000007  // Battery lasts 12-18h so check every ~20 min (1.2M ms)
+#define casual         1200007  // Battery lasts 12-18h so check every ~20 min (1.2M ms)
 #define closerLook      314159  // watch more closely; every ~5 min (300k ms)
 float lastPercent     = 0;
 float fuelPercent     = 0;
