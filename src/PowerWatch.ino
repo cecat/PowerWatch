@@ -10,11 +10,14 @@
 
 FuelGauge fuel;
 #define casual         1200007  // Battery lasts 12-18h so check every ~20 min (1.2M ms)
-#define closerLook      314159  // watch more closely; every ~5 min (300k ms)
+#define watching        314159  // watch power at ~5 min (300k ms) intervals
+#define closerLook      119993  // watch more closely; every ~2min (120k ms)
 float lastPercent     = 0;
 float fuelPercent     = 0;
-bool  TimeToGo        = TRUE;
+bool  TimeToCheck     = TRUE;
+bool  TimeToReport    = TRUE;
 int   messageCount    = 0;
+bool  PowerIsOn       = TRUE;
 
 /*
  * MQTT parameters
@@ -49,9 +52,10 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
 MQTT client(MY_SERVER, 1883, MQTT_KEEPALIVE, mqtt_callback);
 
-bool DEBUG = TRUE;
+bool DEBUG = FALSE;
 
 Timer powerTimer(closerLook, checkPower);
+Timer reportTimer(casual, reportPower);
 
 void setup() {
     Time.zone (-5);
@@ -63,52 +67,57 @@ void setup() {
       } else {
         Particle.publish("mqtt_startup", "Failed to connect to HA - check IP address, username, passwd", 3600, PRIVATE);
     }
-    tellHASS(TOPIC_A, String(fuelPercent));
     if (DEBUG) Particle.publish("debug", "DEBUG=TRUE", PRIVATE);
     powerTimer.start();
+    reportTimer.start();
 }
 
 void loop() {
     
-    if (TimeToGo) {
+    if (TimeToCheck) {
         if (DEBUG) Particle.publish("debug", "checking power", PRIVATE);
-        TimeToGo = FALSE;
+        TimeToCheck = FALSE;
         lastPercent = fuelPercent;
         fuelPercent = fuel.getSoC(); 
-        if (fuelPercent > lastPercent) {
-          tellHASS(TOPIC_A, String(fuelPercent));
-          tellHASS(TOPIC_B, String(fuelPercent));
-        }
-        if (fuelPercent < 75) {     // Below 75%? no- normal fluctuation
+
+        if (fuelPercent < 85) {     // Below 85%? no- normal fluctuation or only brief power outage
             powerTimer.changePeriod(closerLook);
-            if (DEBUG) Particle.publish("debug", "<75 - looking closer", PRIVATE);
+            if (DEBUG) Particle.publish("debug", "<85% - looking closer", PRIVATE);
             if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
                 Particle.publish("POWER", String::format("DIScharging (%.2f)",fuelPercent), PRIVATE);
+                if (PowerIsOn) PowerIsOn = FALSE;
                 tellHASS(TOPIC_A, String(fuelPercent));
                 tellHASS(TOPIC_C, String(fuelPercent));
-             } else {
+            } else {
                 Particle.publish("POWER", String::format("charging (%.2f)",fuelPercent),PRIVATE);
+                if (!PowerIsOn) PowerIsOn = TRUE;
                 tellHASS(TOPIC_A, String(fuelPercent));
                 tellHASS(TOPIC_B, String(fuelPercent));
-                powerTimer.changePeriod(casual);
             }
-        } else {
+          } else {
             if (DEBUG) Particle.publish("debug", ">75% - stop closeLooker timer", PRIVATE);
-            powerTimer.changePeriod(casual);
+            powerTimer.changePeriod(watching);
             tellHASS(TOPIC_A, String(fuelPercent));
         }
-    } 
-}
+      }
+    if (TimeToReport) {
+      tellHASS(TOPIC_A, String(fuelPercent));
+      TimeToReport = FALSE;
+    }
+} 
 /************************************/
 /***         FUNCTIONS       ***/
 /************************************/
 
-// Timer interrupt handler
+// Checking timer interrupt handler
 void checkPower() {
-  TimeToGo = TRUE;
+  TimeToCheck = TRUE;
 }
 
-
+// Reporting timer interrupt handler
+void reportPower() {
+  TimeToReport = TRUE;
+}
 
 //
 // put the mqtt stuff in one place since the error detect/correct
