@@ -82,15 +82,12 @@ void loop() {
         if (fuelPercent < 75) {     // Below 75%? no- normal fluctuation
             closeLooker.start();
             if (DEBUG) Particle.publish("debug", "<75 - looking closer", PRIVATE);
-            if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
+            if (fuelPercent < (lastPercent+5)){  // going down... lost wall power send a warning
                 Particle.publish("POWER", String::format("DIScharging (%.2f)",fuelPercent), PRIVATE);
-                delay(500);
                 tellHASS(TOPIC_C, String(fuelPercent));
              } else {
                 Particle.publish("POWER", String::format("charging (%.2f)",fuelPercent),PRIVATE);
-                delay(500);
                 tellHASS(TOPIC_B, String(fuelPercent));
-                delay(500);
                 tellHASS(TOPIC_A, String(fuelPercent));
                 closeLooker.stop();
             }
@@ -108,7 +105,6 @@ void loop() {
 // Timer interrupt handler
 void checkPower() {
   TimeToGo = TRUE;
-  // tellHASS(TOPIC_A, String(fuelPercent));
 }
 
 
@@ -121,13 +117,11 @@ void checkPower() {
 void tellHASS (const char *ha_topic, String ha_payload) {
   if (DEBUG) Particle.publish("tellHASS msg#", String(messageCount), PRIVATE);
   messageCount++;
-  delay(500);
   if (client.isConnected()) {
     client.publish(ha_topic, ha_payload);
   } else {
     if (DEBUG) Particle.publish("debug-tellHASS", "was NOT connected", PRIVATE);
     client.connect(CLIENT_NAME, HA_USR, HA_PWD);
-    delay(500);
     client.publish(ha_topic, ha_payload);
   } // did it work?
   if (DEBUG) {
@@ -137,5 +131,5 @@ void tellHASS (const char *ha_topic, String ha_payload) {
       Particle.publish("debug-tellHASS", "still NOT connected", PRIVATE);
     }
   }
-
+  client.disconnect();
 }
