@@ -49,8 +49,9 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
 MQTT client(MY_SERVER, 1883, MQTT_KEEPALIVE, mqtt_callback);
 
-bool DEBUG = FALSE;
-      Timer powerTimer(closerLook, checkPower);
+bool DEBUG = TRUE;
+
+Timer powerTimer(closerLook, checkPower);
 
 void setup() {
     Time.zone (-5);
@@ -75,19 +76,20 @@ void loop() {
         lastPercent = fuelPercent;
         fuelPercent = fuel.getSoC(); 
         if (fuelPercent > lastPercent) {
-          tellHASS(TOPIC_B, String(fuelPercent));
           tellHASS(TOPIC_A, String(fuelPercent));
+          tellHASS(TOPIC_B, String(fuelPercent));
         }
         if (fuelPercent < 75) {     // Below 75%? no- normal fluctuation
             powerTimer.changePeriod(closerLook);
             if (DEBUG) Particle.publish("debug", "<75 - looking closer", PRIVATE);
             if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
                 Particle.publish("POWER", String::format("DIScharging (%.2f)",fuelPercent), PRIVATE);
+                tellHASS(TOPIC_A, String(fuelPercent));
                 tellHASS(TOPIC_C, String(fuelPercent));
              } else {
                 Particle.publish("POWER", String::format("charging (%.2f)",fuelPercent),PRIVATE);
-                tellHASS(TOPIC_B, String(fuelPercent));
                 tellHASS(TOPIC_A, String(fuelPercent));
+                tellHASS(TOPIC_B, String(fuelPercent));
                 powerTimer.changePeriod(casual);
             }
         } else {
@@ -114,21 +116,12 @@ void checkPower() {
 // require recovery code
 
 void tellHASS (const char *ha_topic, String ha_payload) {
-  if (DEBUG) Particle.publish("tellHASS msg#", String(messageCount), PRIVATE);
+
   messageCount++;
-  if (client.isConnected()) {
-    client.publish(ha_topic, ha_payload);
-  } else {
-    if (DEBUG) Particle.publish("debug-tellHASS", "was NOT connected", PRIVATE);
-    client.connect(CLIENT_NAME, HA_USR, HA_PWD);
-    client.publish(ha_topic, ha_payload);
-  } // did it work?
-  if (DEBUG) {
-    if (client.isConnected()) {
-      Particle.publish("debug-tellHASS", "re-connected", PRIVATE);
-    } else {
-      Particle.publish("debug-tellHASS", "still NOT connected", PRIVATE);
-    }
-  }
+
+  if (DEBUG) Particle.publish("tellHASS msg#", String(messageCount), PRIVATE);
+    
+  client.connect(CLIENT_NAME, HA_USR, HA_PWD);
+  client.publish(ha_topic, ha_payload);
   client.disconnect();
 }
