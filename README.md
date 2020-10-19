@@ -1,5 +1,9 @@
 # PowerWatch
-[note this code is still being debugged and hacked]
+
+This code uses MQTT with no QoS which works
+fine within a local area network but is not so reliable traversing cellular Internet
+connections with low signal strength (I am testing with a cellular signal strength
+of 20-25%).
 
 A Particle.io Electron-based power monitor for a remote home. Using an Electron
 with a LiPo battery and plugged into the wall, checks battery level regularly.
