@@ -19,7 +19,6 @@ void checkPower();
 void tellHASS (const char *ha_topic, String ha_payload);
 #line 11 "/Users/charlescatlett/CODE/PowerWatch/src/PowerWatch.ino"
 FuelGauge fuel;
-                                // prime numbers are cool
 #define casual         1200007  // Battery lasts 12-18h so check every ~20 min (1.2M ms)
 #define closerLook      314159  // watch more closely; every ~5 min (300k ms)
 float lastPercent     = 0;
@@ -50,7 +49,7 @@ const char *TOPIC_C = "ha/cabin/powerOUT";
 // MQTT functions
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void timer_callback_send_mqqt_data();    
- // MQTT callbacks implementation
+ // MQTT callbacks implementation (not used here but required)
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
      char p[length + 1];
      memcpy(p, payload, length);
@@ -60,12 +59,8 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
 
 MQTT client(MY_SERVER, 1883, MQTT_KEEPALIVE, mqtt_callback);
 
-//bool DEBUG = TRUE;
-//      Timer powerTimer(30000, checkPower);
-//      Timer closeLooker(10000, checkPower);
 bool DEBUG = FALSE;
-      Timer powerTimer(casual, checkPower);
-      Timer closeLooker(closerLook, checkPower);
+      Timer powerTimer(closerLook, checkPower);
 
 void setup() {
     Time.zone (-5);
@@ -89,21 +84,25 @@ void loop() {
         TimeToGo = FALSE;
         lastPercent = fuelPercent;
         fuelPercent = fuel.getSoC(); 
+        if (fuelPercent > lastPercent) {
+          tellHASS(TOPIC_B, String(fuelPercent));
+          tellHASS(TOPIC_A, String(fuelPercent));
+        }
         if (fuelPercent < 75) {     // Below 75%? no- normal fluctuation
-            closeLooker.start();
+            powerTimer.changePeriod(closerLook);
             if (DEBUG) Particle.publish("debug", "<75 - looking closer", PRIVATE);
-            if (fuelPercent < (lastPercent+5)){  // going down... lost wall power send a warning
+            if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
                 Particle.publish("POWER", String::format("DIScharging (%.2f)",fuelPercent), PRIVATE);
                 tellHASS(TOPIC_C, String(fuelPercent));
              } else {
                 Particle.publish("POWER", String::format("charging (%.2f)",fuelPercent),PRIVATE);
                 tellHASS(TOPIC_B, String(fuelPercent));
                 tellHASS(TOPIC_A, String(fuelPercent));
-                closeLooker.stop();
+                powerTimer.changePeriod(casual);
             }
         } else {
             if (DEBUG) Particle.publish("debug", ">75% - stop closeLooker timer", PRIVATE);
-            closeLooker.stop();
+            powerTimer.changePeriod(casual);
             tellHASS(TOPIC_A, String(fuelPercent));
         }
     } 
