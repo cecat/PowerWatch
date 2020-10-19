@@ -9,9 +9,9 @@
 #include "secrets.h"
 
 FuelGauge fuel;
-#define casual         1200007  // Battery lasts 12-18h so check every ~20 min (1.2M ms)
-#define watching        314159  // watch power at ~5 min (300k ms) intervals
-#define closerLook      119993  // watch more closely; every ~2min (120k ms)
+#define casual         3600007  // Battery lasts 12-18h so update every ~1h (1)
+#define watching        599999  // watch power at ~10 min (600k ms) intervals
+#define closerLook      314159  // watch more closely; every ~5min (300k ms)
 float lastPercent     = 0;
 float fuelPercent     = 0;
 bool  TimeToCheck     = TRUE;
