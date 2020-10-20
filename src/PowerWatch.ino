@@ -9,9 +9,9 @@
 #include "secrets.h"
 
 FuelGauge fuel;
-#define casual         3600007  // Battery lasts 12-18h so update every ~1h (1)
-#define watching        599999  // watch power at ~10 min (600k ms) intervals
-#define closerLook      314159  // watch more closely; every ~5min (300k ms)
+#define reportingPeriod 3600007  // Battery lasts 12-18h so update every ~1h (1)
+#define watching         599999  // watch power at ~10 min (600k ms) intervals
+#define closerLook       314159  // watch more closely; every ~5min (300k ms)
 float lastPercent     = 0;
 float fuelPercent     = 0;
 bool  TimeToCheck     = TRUE;
@@ -55,7 +55,7 @@ MQTT client(MY_SERVER, 1883, MQTT_KEEPALIVE, mqtt_callback);
 bool DEBUG = FALSE;
 
 Timer powerTimer(closerLook, checkPower);
-Timer reportTimer(casual, reportPower);
+Timer reportTimer(reportingPeriod, reportPower);
 
 void setup() {
     Time.zone (-5);
@@ -80,9 +80,9 @@ void loop() {
         lastPercent = fuelPercent;
         fuelPercent = fuel.getSoC(); 
 
-        if (fuelPercent < 85) {     // Below 85%? no- normal fluctuation or only brief power outage
+        if (fuelPercent < 80) {     // Below 80%? no- normal fluctuation or only brief power outage
             powerTimer.changePeriod(closerLook);
-            if (DEBUG) Particle.publish("debug", "<85% - looking closer", PRIVATE);
+            if (DEBUG) Particle.publish("debug", "<80% - looking closer", PRIVATE);
             if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
                 Particle.publish("POWER", String::format("DIScharging (%.2f)",fuelPercent), PRIVATE);
                 if (PowerIsOn) PowerIsOn = FALSE;
@@ -95,7 +95,7 @@ void loop() {
                 tellHASS(TOPIC_B, String(fuelPercent));
             }
           } else {
-            if (DEBUG) Particle.publish("debug", ">75% - stop closeLooker timer", PRIVATE);
+            if (DEBUG) Particle.publish("debug", ">80% - stop closeLooker timer", PRIVATE);
             powerTimer.changePeriod(watching);
             tellHASS(TOPIC_A, String(fuelPercent));
         }
