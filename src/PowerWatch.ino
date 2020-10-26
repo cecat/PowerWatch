@@ -7,17 +7,20 @@
 #include <Particle.h>
 #include <MQTT.h>
 #include "secrets.h"
+//#include "powercode.h"
 
 FuelGauge fuel;
 #define reportingPeriod 3600007  // Battery lasts 12-18h so update every ~1h (1)
 #define watching         599999  // watch power at ~10 min (600k ms) intervals
 #define closerLook       314159  // watch more closely; every ~5min (300k ms)
+#define LINE_PWR              1  // we're plugged in (5 means we are on battery)
 float lastPercent     = 0;
 float fuelPercent     = 0;
 bool  TimeToCheck     = TRUE;
 bool  TimeToReport    = TRUE;
 int   messageCount    = 0;
 bool  PowerIsOn       = TRUE;
+int   powerSource     = 0;
 
 /*
  * MQTT parameters
@@ -67,41 +70,51 @@ void setup() {
       } else {
         Particle.publish("mqtt_startup", "Failed to connect to HA - check IP address, username, passwd", 3600, PRIVATE);
     }
-    if (DEBUG) Particle.publish("debug", "DEBUG=TRUE", PRIVATE);
+    if (DEBUG) Particle.publish("DEBUG", "DEBUG=TRUE", PRIVATE);
+    Particle.publish("POWER", String(fuelPercent), PRIVATE);
+    powerSource = System.powerSource();
+    if (powerSource == LINE_PWR) {
+        Particle.publish("POWER-startup", "Power ON", PRIVATE);
+        tellHASS(TOPIC_B, String(fuelPercent));
+    } else {
+        Particle.publish("POWER-startup", "Power OFF", PRIVATE);
+        tellHASS(TOPIC_C, String(fuelPercent));
+    }
     powerTimer.start();
     reportTimer.start();
 }
 
 void loop() {
-    
+
     if (TimeToCheck) {
-        if (DEBUG) Particle.publish("debug", "checking power", PRIVATE);
+        if (DEBUG) Particle.publish("DEBUG", "checking power", PRIVATE);
         TimeToCheck = FALSE;
         lastPercent = fuelPercent;
         fuelPercent = fuel.getSoC(); 
-
-        if (fuelPercent < 80) {     // Below 80%? no- normal fluctuation or only brief power outage
-            powerTimer.changePeriod(closerLook);
-            if (DEBUG) Particle.publish("debug", "<80% - looking closer", PRIVATE);
-            if (fuelPercent < lastPercent){  // going down... lost wall power send a warning
-                Particle.publish("POWER", String::format("DIScharging (%.2f)",fuelPercent), PRIVATE);
-                if (PowerIsOn) PowerIsOn = FALSE;
-                tellHASS(TOPIC_A, String(fuelPercent));
-                tellHASS(TOPIC_C, String(fuelPercent));
-            } else {
-                Particle.publish("POWER", String::format("charging (%.2f)",fuelPercent),PRIVATE);
-                if (!PowerIsOn) PowerIsOn = TRUE;
-                tellHASS(TOPIC_A, String(fuelPercent));
-                tellHASS(TOPIC_B, String(fuelPercent));
-            }
-          } else {
-            if (DEBUG) Particle.publish("debug", ">80% - stop closeLooker timer", PRIVATE);
+        // powerSource: 5=wall wart; 2=USB host; 1=battery
+        powerSource = System.powerSource();
+        if (DEBUG) Particle.publish("DEBUG-Pwr Src", String(powerSource), PRIVATE);
+        if (powerSource == LINE_PWR) {
+            PowerIsOn = TRUE;
+            Particle.publish("POWER-start ON", String(powerSource), PRIVATE);
+            tellHASS(TOPIC_B, String(fuelPercent));
             powerTimer.changePeriod(watching);
-            tellHASS(TOPIC_A, String(fuelPercent));
+        } else {
+            PowerIsOn = FALSE;
+            Particle.publish("POWER-start OFF", String(powerSource), PRIVATE);
+            tellHASS(TOPIC_C, String(powerSource));
+            powerTimer.changePeriod(closerLook);
         }
-      }
+    }
+
     if (TimeToReport) {
+      Particle.publish("POWER", String(fuelPercent), PRIVATE);
       tellHASS(TOPIC_A, String(fuelPercent));
+      if (PowerIsOn) {
+        tellHASS(TOPIC_B, String(fuelPercent));
+      } else {
+        tellHASS(TOPIC_C, String(fuelPercent));
+      }
       TimeToReport = FALSE;
     }
 } 
@@ -128,7 +141,7 @@ void tellHASS (const char *ha_topic, String ha_payload) {
 
   messageCount++;
 
-  if (DEBUG) Particle.publish("tellHASS msg#", String(messageCount), PRIVATE);
+  if (DEBUG) Particle.publish("DEBUG. TellHASS msg#", String(messageCount), PRIVATE);
     
   client.connect(CLIENT_NAME, HA_USR, HA_PWD);
   client.publish(ha_topic, ha_payload);
