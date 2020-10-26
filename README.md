@@ -1,6 +1,6 @@
 # PowerWatch
 
------This is legacy replaced by [LakeWatch](https://github.com/cecat/Lake-Watch)-----
+## This repo is legacy --- replaced by [LakeWatch](https://github.com/cecat/Lake-Watch)
 
 This code uses MQTT with no QoS which works
 fine within a local area network but is not so reliable traversing cellular Internet
