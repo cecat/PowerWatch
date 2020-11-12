@@ -72,14 +72,6 @@ void setup() {
     }
     if (DEBUG) Particle.publish("DEBUG", "DEBUG=TRUE", PRIVATE);
     Particle.publish("POWER", String(fuelPercent), PRIVATE);
-    powerSource = System.powerSource();
-    if (powerSource == LINE_PWR) {
-        Particle.publish("POWER-startup", "Power ON", PRIVATE);
-        tellHASS(TOPIC_B, String(fuelPercent));
-    } else {
-        Particle.publish("POWER-startup", "Power OFF", PRIVATE);
-        tellHASS(TOPIC_C, String(fuelPercent));
-    }
     powerTimer.start();
     reportTimer.start();
 }
@@ -95,14 +87,18 @@ void loop() {
         powerSource = System.powerSource();
         if (DEBUG) Particle.publish("DEBUG-Pwr Src", String(powerSource), PRIVATE);
         if (powerSource == LINE_PWR) {
+            if (!PowerIsOn) {
+              tellHASS(TOPIC_B, String(powerSource));
+              Particle.publish("POWER-start ON", String(powerSource), PRIVATE);
+            }
             PowerIsOn = TRUE;
-            Particle.publish("POWER-start ON", String(powerSource), PRIVATE);
-            tellHASS(TOPIC_B, String(fuelPercent));
             powerTimer.changePeriod(watching);
         } else {
-            PowerIsOn = FALSE;
+          if (PowerIsOn) {
             Particle.publish("POWER-start OFF", String(powerSource), PRIVATE);
             tellHASS(TOPIC_C, String(powerSource));
+          }
+            PowerIsOn = FALSE;
             powerTimer.changePeriod(closerLook);
         }
     }
@@ -112,8 +108,10 @@ void loop() {
       tellHASS(TOPIC_A, String(fuelPercent));
       if (PowerIsOn) {
         tellHASS(TOPIC_B, String(fuelPercent));
+        reportTimer.changePeriod(reportingPeriod);
       } else {
         tellHASS(TOPIC_C, String(fuelPercent));
+        reportTimer.changePeriod(watching);
       }
       TimeToReport = FALSE;
     }
