@@ -10,9 +10,12 @@
 //#include "powercode.h"
 
 FuelGauge fuel;
-#define reportingPeriod 3600007  // Battery lasts 12-18h so update every ~1h (1)
-#define watching         599999  // watch power at ~10 min (600k ms) intervals
-#define closerLook       314159  // watch more closely; every ~5min (300k ms)
+//#define reportingPeriod 3600007  // Battery lasts 12-18h so update every ~1h (1)
+//#define watching         599999  // watch power at ~10 min (600k ms) intervals
+//#define closerLook       314159  // watch more closely; every ~5min (300k ms)
+#define reportingPeriod 120000 // debug reporting ever 2 min
+#define watching         60000  // debug watch power every minute
+#define closerLook       30000  // debug watch more closely every 30 sec
 #define LINE_PWR              1  // we're plugged in (5 means we are on battery)
 float lastPercent     = 0;
 float fuelPercent     = 0;
@@ -45,17 +48,20 @@ const char *TOPIC_C = "ha/cabin/powerOUT";
 // MQTT functions
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void timer_callback_send_mqqt_data();    
- // MQTT callbacks implementation (not used here but required)
+ // (for receiving messages, though not used here)
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
      char p[length + 1];
      memcpy(p, payload, length);
      p[length] = 0; 
      Particle.publish("mqtt", p, 3600, PRIVATE);
- }
+ } 
+ void qoscallback(unsigned int messageid) {
+    Particle.publish("Ack Message Id:", String(messageid), PRIVATE);
+}
 
 MQTT client(MY_SERVER, 1883, MQTT_KEEPALIVE, mqtt_callback);
 
-bool DEBUG = FALSE;
+bool DEBUG = TRUE;
 
 Timer powerTimer(closerLook, checkPower);
 Timer reportTimer(reportingPeriod, reportPower);
@@ -65,8 +71,15 @@ void setup() {
     Particle.syncTime();
     fuelPercent = fuel.getSoC();
     client.connect(CLIENT_NAME, HA_USR, HA_PWD);
+    client.addQosCallback(qoscallback);
+
     if (client.isConnected()) {
         Particle.publish("mqtt_startup", "Connected to HA", 3600, PRIVATE);
+        uint16_t messageid;
+        client.publish("ha/cabin/QOS", "using qos1", MQTT::QOS1, &messageid);
+        Particle.publish("MQTT", String(messageid), PRIVATE);
+        // if 4th parameter don't set or NULL, application can not check the message id to the ACK message from MQTT server.
+        client.publish("ha/cabin/QOS", "hello world QOS1(message is NULL)", MQTT::QOS1);
       } else {
         Particle.publish("mqtt_startup", "Failed to connect to HA - check IP address, username, passwd", 3600, PRIVATE);
     }
@@ -83,7 +96,6 @@ void loop() {
         TimeToCheck = FALSE;
         lastPercent = fuelPercent;
         fuelPercent = fuel.getSoC(); 
-        // powerSource: 5=wall wart; 2=USB host; 1=battery
         powerSource = System.powerSource();
         if (DEBUG) Particle.publish("DEBUG-Pwr Src", String(powerSource), PRIVATE);
         if (powerSource == LINE_PWR) {
@@ -141,7 +153,40 @@ void tellHASS (const char *ha_topic, String ha_payload) {
 
   if (DEBUG) Particle.publish("DEBUG. TellHASS msg#", String(messageCount), PRIVATE);
     
-  client.connect(CLIENT_NAME, HA_USR, HA_PWD);
-  client.publish(ha_topic, ha_payload);
-  client.disconnect();
+// QoS0 (no qos) code
+  //client.connect(CLIENT_NAME, HA_USR, HA_PWD);
+  //client.publish(ha_topic, ha_payload);
+  //client.disconnect();
+
+//QoS1 code from library example
+// connect to the server
+    client.connect(CLIENT_NAME, HA_USR, HA_PWD);
+
+    // add qos callback. If don't add qoscallback, ACK message from MQTT server is ignored.
+    client.addQosCallback(qoscallback);
+
+    // publish/subscribe
+    if (client.isConnected()) {
+        // get the messageid from parameter at 4.
+        uint16_t messageid;
+        client.publish(ha_topic, ha_payload, MQTT::QOS1, &messageid);
+        Particle.publish("MQTT-QOS", String(messageid), PRIVATE);
+
+        // if 4th parameter don't set or NULL, application can not check the message id to the ACK message from MQTT server.
+        Particle.publish("MQTT-QOS", "QOS1(message is NULL)", MQTT::QOS1);
+
+        // QOS=2
+        //client.publish("outTopic/message", "hello world QOS2", MQTT::QOS2, &messageid);
+        //Serial.println(messageid);
+
+        // save QoS2 message id as global parameter.
+        //qos2messageid = messageid;
+
+        // MQTT subscribe endpoint could have the QoS
+        //client.subscribe("inTopic/message", MQTT::QOS2);
+        
+        client.disconnect();
+    } else {
+      Particle.publish("TellHass", "No Connection", PRIVATE);
+    }
 }
